@@ -2,7 +2,7 @@ import io
 import os
 import random
 import sqlite3
-from MOIAIS import MOIAIS
+
 import numpy as np
 import pandas as pd
 import sklearn as sk
@@ -89,7 +89,7 @@ def remove_stop_words(x):
 if __name__ == '__main__':
     blacklist = []
     # create dir to file MOIAIS.pdf in PdfFiles folder
-    os.chdir('PdfFiles')
+    # os.chdir('PdfFiles')
     # pdf_listing = extract_text('MOIAIS.pdf')
     # themes = ['SQL', 'WEB', 'GUI', 'ALGORITHM', 'MATH']
     # for listing in pdf_listing:
@@ -153,13 +153,27 @@ if __name__ == '__main__':
     # conn.commit()
     # Close connection
     # conn.close()
-    # Select each student from students table which has faculty_id = 1
+    # Select each student from students table which has faculty_id = 1 and id >= 200000
     # For each selected student:
     #   For each subject from subjects table which has faculty_id = 1:
     #       Add to substu table:
     #          student_id = id of selected student
     #          subject_id = id of selected subject
     #          mark = random number from 61 to 100
+    bipki = sqlite3.connect('bipki.db')
+    c = bipki.cursor()
+    # c.execute("SELECT id FROM students WHERE faculty_id = 1 AND id >= 200000")
+    # students = c.fetchall()
+    # print(students)
+    # c.execute("SELECT id FROM subjects WHERE faculty_id = 1")
+    # subjects = c.fetchall()
+    # for student in students:
+    #     for subject in subjects:
+    #         print(student[0], subject[0])
+    #         c.execute("INSERT INTO substu (student_id, subject_id, mark) VALUES (?, ?, ?)",
+    #                   (student[0], subject[0], random.randint(61, 100)))
+    # bipki.commit()
+    # bipki.close()
     needness = [{"MATH": 300},{ "NEURO": 100},{"SQL":250},{"ALG":200}]
     n_amount = 8
     directory = 'bipki.db'
@@ -168,10 +182,14 @@ if __name__ == '__main__':
     #     print(Team)
 
     # Check in which n_amount be the smallest dispersion of rating
-    for i in range(2, 13):
+    for i in range(2, 10):
         Teams = (SplitTeams(i, needness, directory))
+        if type(Teams) is str:
+            print("Количество команд больше, чем количество студентов, либо == 1")
+            break
         ratings = []
         for Team in Teams:
             ratings.append(list(Team.values()))
         print("Dispersion for " + str(i) + " teams: " + str(np.var(ratings)))
+        print(Teams)
 
