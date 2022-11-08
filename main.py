@@ -16,7 +16,7 @@ from pdfminer.pdfpage import PDFPage
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
-from SplitTeams import SplitTeams
+from SplitTeams import SplitTeams, SplitTeams_
 
 russian_stopwords = stopwords.words("russian")
 
@@ -84,6 +84,8 @@ def extract_text(pdf_path):
 
 def remove_stop_words(x):
     return [word for word in x if word not in russian_stopwords]
+
+
 
 
 if __name__ == '__main__':
@@ -182,14 +184,50 @@ if __name__ == '__main__':
     #     print(Team)
 
     # Check in which n_amount be the smallest dispersion of rating
-    for i in range(2, 10):
+    for i in range(20, 21):
         Teams = (SplitTeams(i, needness, directory))
+        if type(Teams) is str:
+            print("Количество команд больше, чем количество студентов, либо == 1")
+            break
+        else:
+            teams = Teams['teams']
+            rating = Teams['teams_rating']
+            # Zip teams with their rating
+            teams_rating = list(zip(teams, rating))
+            # Print dispersion of rating
+            print(np.var(rating)," Дисперсия с помощью графов")
+
+    for i in range(20, 21):
+        Teams = (SplitTeams_(i, needness, directory))
         if type(Teams) is str:
             print("Количество команд больше, чем количество студентов, либо == 1")
             break
         ratings = []
         for Team in Teams:
             ratings.append(list(Team.values()))
-        print("Dispersion for " + str(i) + " teams: " + str(np.var(ratings)))
+        print("Dispersion for " + str(i) + " teams: " + str(np.var(ratings)), " Дисперсия с помощью старого метода")
         print(Teams)
 
+        for i in range(2, 3):
+            Teams = (SplitTeams(i, needness, directory))
+            if type(Teams) is str:
+                print("Количество команд больше, чем количество студентов, либо == 1")
+                break
+            else:
+                teams = Teams['teams']
+                rating = Teams['teams_rating']
+                # Zip teams with their rating
+                teams_rating = list(zip(teams, rating))
+                # Print dispersion of rating
+                print(np.var(rating)," Дисперсия с помощью графов")
+
+        for i in range(2, 3):
+            Teams = (SplitTeams_(i, needness, directory))
+            if type(Teams) is str:
+                print("Количество команд больше, чем количество студентов, либо == 1")
+                break
+            ratings = []
+            for Team in Teams:
+                ratings.append(list(Team.values()))
+            print("Dispersion for " + str(i) + " teams: " + str(np.var(ratings)), " Дисперсия с помощью старого метода")
+            print(Teams)
