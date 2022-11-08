@@ -1,6 +1,8 @@
 import io
 import os
-
+import random
+import sqlite3
+from MOIAIS import MOIAIS
 import numpy as np
 import pandas as pd
 import sklearn as sk
@@ -14,6 +16,7 @@ from pdfminer.pdfpage import PDFPage
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.pipeline import Pipeline
+from SplitTeams import SplitTeams
 
 russian_stopwords = stopwords.words("russian")
 
@@ -126,43 +129,49 @@ if __name__ == '__main__':
     # df = pd.DataFrame(pdf_listing, columns=['Name', 'Text', 'Theme'])
     #Save training data to csv file
     # df.to_csv('training_data.csv', index=False)
-    df = pd.read_csv('training_data.csv')
+    # df = pd.read_csv('training_data.csv')
 
     # Get text from "Пояснительная записк" to "Система оценивания"
-    df['Text'] = df['Text'].apply(lambda x: x.split('Пояснительная записка')[1].split('Система оценивания')[0])
-    # Remove punctuation
-    df['Text'] = df['Text'].apply(lambda x: remove_punctuation(x))
-    # Split text to words
-    df['Text'] = df['Text'].apply(lambda x: x.split())
-    # Get only unique words
-    df['Text'] = df['Text'].apply(lambda x: set(x))
-    #Concat all words in one string
-    df['Text'] = df['Text'].apply(lambda x: ' '.join(x))
-    for row in df['Text']:
-        print(row)
-    # Create text classifier by sklearn to classify themes
-    # Create pipeline for text classifier
-    text_clf = Pipeline([('vect', CountVectorizer()), ('tfidf', TfidfTransformer()), ('clf', MultinomialNB())])
-    # Train classifier
-    text_clf.fit(df['Text'], df['Theme'])
-    # get accuracy of classifier
-    print('Accuracy: ', np.mean(text_clf.predict(df['Text']) == df['Theme']))
-    for row in df.iterrows():
-        #Print row theme and predicted
-        print(row[1]['Theme'], text_clf.predict([row[1]['Text']]))
-    pdf_listing = extract_text('ISIT.pdf')
-    # pdf_listing to dataframe
-    df = pd.DataFrame(pdf_listing, columns=['Name', 'Text'])
-    df['Text'] = df['Text'].apply(lambda x: x.split('Пояснительная записка')[1].split('Система оценивания')[0])
-    # Remove punctuation
-    df['Text'] = df['Text'].apply(lambda x: remove_punctuation(x))
-    # Split text to words
-    df['Text'] = df['Text'].apply(lambda x: x.split())
-    # Get only unique words
-    df['Text'] = df['Text'].apply(lambda x: set(x))
-    # Concat all words in one string
-    df['Text'] = df['Text'].apply(lambda x: ' '.join(x))
+    #df['Text'] = df['Text'].apply(lambda x: x.split('Пояснительная записка')[1].split('Система оценивания')[0])
+    #
+    # Save df
+    #df.to_csv('training_data.csv', index=False)
+    #Open bipki.db
+    # conn = sqlite3.connect('bipki.db')
+    #Create cursor
+    # c = conn.cursor()
+    # Add to subjects table:
+    # id which autoincrement
+    # name of subject from df,
+    # description = Text(df),
+    # faculty_id = 1
+    # theme = Theme(df)
+    # for i in range(len(df)):
+    #     c.execute("INSERT INTO subjects (name, description, faculty_id, theme) VALUES (?, ?, ?, ?)",
+    #               (df['Name'][i], df['Text'][i], 1, df['Theme'][i]))
+    # Save (commit) the changes
+    # conn.commit()
+    # Close connection
+    # conn.close()
+    # Select each student from students table which has faculty_id = 1
+    # For each selected student:
+    #   For each subject from subjects table which has faculty_id = 1:
+    #       Add to substu table:
+    #          student_id = id of selected student
+    #          subject_id = id of selected subject
+    #          mark = random number from 61 to 100
+    needness = [{"MATH": 300},{ "NEURO": 100},{"SQL":250},{"ALG":200}]
+    n_amount = 8
+    directory = 'bipki.db'
+    # Teams = (SplitTeams(n_amount,needness, directory))
+    # for Team in Teams:
+    #     print(Team)
 
-
-
+    # Check in which n_amount be the smallest dispersion of rating
+    for i in range(2, 13):
+        Teams = (SplitTeams(i, needness, directory))
+        ratings = []
+        for Team in Teams:
+            ratings.append(list(Team.values()))
+        print("Dispersion for " + str(i) + " teams: " + str(np.var(ratings)))
 
