@@ -1,4 +1,5 @@
 import os
+import random
 import sqlite3
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -9,61 +10,20 @@ import sklearn as sk
 # ignore FutureWarning
 import warnings
 
+from scipy import stats
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 
 def Split_Teams(subjectss, n_amoun, needness_compet):
-    # subjectss = list of subjects:
-    #   subjectss[:][0] - id of student
-    #   subjectss[:][1] - id of subject
-    #   subjectss[:][2] - mark of subject (float, from 0 to 100)
-    #   subjectss[:][3] - theme of subject (List of strings)
-    # n_amoun = amount of teams
-    # needness_compet = list of needness competences with their weights
-    new_subjectss = []
-    for need in needness_compet:
-        need = (list(need.keys())[0])
-        for subject in subjectss:
-            if need in subject[3]:
-                new_subjectss.append(subject)
-    new_list = []
-    # Sort new_subjectss by student_id
-    new_subjectss.sort(key=lambda x: x[0])
-    df = pd.DataFrame(new_subjectss, columns=['student_id', 'subject_id', 'mark', 'theme'])
-    df_group = df.groupby('student_id')
-    list_of_students = []
-    for name, group in df_group:
-        list_of_students.append({name: {}})
-        for need in needness_compet:
-            need = (list(need.keys())[0])
-            list_of_students[-1][name][need] = 0
-            for subject in new_subjectss:
-                if subject[0] == name and need in subject[3]:
-                    list_of_students[-1][name][need] += subject[2]
-    # Create df from new_subjectss
-    df_marks = pd.DataFrame(columns=['student_id', 'theme', 'mark'])
-    df = pd.DataFrame(new_subjectss, columns=['student_id', 'subject_id', 'mark', 'theme'])
-    df_group = df.groupby('student_id')
-    for name, group in df_group:
-        for compet in needness_compet:
-            comp = list(compet.keys())[0]
-            sum_comp = 0
-            for row in group.iterrows():
-                if comp in (row[1]['theme']):
-                    sum_comp += row[1]['mark']
-            df_marks = df_marks.append({'student_id': name, 'theme': comp, 'mark': sum_comp}, ignore_index=True)
+    df_marks = preProcessing(subjectss, needness_compet)
     result = Generate_balanced_teams(df_marks, n_amoun, needness_compet)
     return result
 
 
-
-
-
-
-
 def Generate_balanced_teams(stud_theme_mark_df, amount_members, compet_needs):
     if amount_members < 2 or len(stud_theme_mark_df) / len(compet_needs) < amount_members:
-        return ('Error: amount of members in team must be >= 2 and <= amount of students/amount of competences')
+        return 'Error: amount of members in team must be >= 2 and <= amount of students/amount of competences'
     # Get ratings of each student
     df_group = stud_theme_mark_df.groupby('student_id')
     list_of_students = []
@@ -72,12 +32,16 @@ def Generate_balanced_teams(stud_theme_mark_df, amount_members, compet_needs):
         for row in group.iterrows():
             list_of_students[-1][name][row[1]['theme']] = row[1]['mark']
     All_arr_ratings = []
+    val_need = []
+    compet_needs = compet_needs[0]
+    for compet, value in compet_needs.items():
+        val_need.append(value)
     for student in list_of_students:
         arr_rating = []
-        for i in range(len(compet_needs)):
-            val_need = (list(compet_needs[i].values())[0])
+        for i in range(len(val_need)):
+            val_need_iter = (val_need[i])
             value = (list((list(student.values())[0]).values())[i])
-            arr_rating.append(value / val_need)
+            arr_rating.append(value / val_need_iter)
         All_arr_ratings.append(np.mean(arr_rating))
     list_of_students = []
     for name, group in df_group:
@@ -104,97 +68,27 @@ def Generate_balanced_teams(stud_theme_mark_df, amount_members, compet_needs):
     for i in range(len(communities)):
         teams[i % amount_members].append(communities[i])
     # That method named "Greedy Modularity Communities" is not always optimal
-    #plot histogram of teams rating
+    # plot histogram of teams rating
     teams_rating = []
     for team in teams:
         sum_rating = 0
         for student in team:
             sum_rating += stud_rating[student]
         teams_rating.append(sum_rating / len(team))
-    for i in range(len(teams_rating)):
-        print('Team ' + str(i) + ' rating: ' + str(teams_rating[i]), teams[i])
     plt.hist(teams_rating)
     plt.show()
     return {'teams': teams, 'teams_rating': teams_rating}
 
 
-
-
-def SplitTeams(n_amount, needness, directory):
-    # Create connection to database
-    bipki = sqlite3.connect(directory)
-    cursor = bipki.cursor()
-    cursor.execute("SELECT id FROM students WHERE faculty_id = 1")
-    students = cursor.fetchall()
-    cursor.execute("SELECT id FROM subjects WHERE faculty_id = 1")
-    subjects = cursor.fetchall()
-    needness = needness
-    n_amount = n_amount  # -- Amount of teams
-    stud_list = []
-    for student in students:
-        for subject in subjects:
-            cursor.execute("Select mark FROM substu WHERE student_id = ? AND subject_id = ?", (student[0], subject[0]))
-            mark = cursor.fetchall()
-            cursor.execute("Select theme FROM subjects WHERE id = ?", (subject[0],))
-            theme = cursor.fetchall()
-            try:
-                stud_list.append(
-                    [student[0], subject[0], (mark[0][0] - 61) / 39 * 100, theme[0][0].split(' ')])
-            except(AttributeError):
-                pass
-    teams = Split_Teams(stud_list, n_amount, needness)
-    return teams
-
-
-
-
-
 def Split_Teams_(subjectss, n_amoun, needness_compet):
-    # subjectss = list of subjects:
-    #   subjectss[:][0] - id of student
-    #   subjectss[:][1] - id of subject
-    #   subjectss[:][2] - mark of subject (float, from 0 to 100)
-    #   subjectss[:][3] - theme of subject (List of strings)
-    # n_amoun = amount of teams
-    # needness_compet = list of needness competences with their weights
-    new_subjectss = []
-    for need in needness_compet:
-        need = (list(need.keys())[0])
-        for subject in subjectss:
-            if need in subject[3]:
-                new_subjectss.append(subject)
-    new_list = []
-    # Sort new_subjectss by student_id
-    new_subjectss.sort(key=lambda x: x[0])
-    df = pd.DataFrame(new_subjectss, columns=['student_id', 'subject_id', 'mark', 'theme'])
-    df_group = df.groupby('student_id')
-    list_of_students = []
-    for name, group in df_group:
-        list_of_students.append({name: {}})
-        for need in needness_compet:
-            need = (list(need.keys())[0])
-            list_of_students[-1][name][need] = 0
-            for subject in new_subjectss:
-                if subject[0] == name and need in subject[3]:
-                    list_of_students[-1][name][need] += subject[2]
-    # Create df from new_subjectss
-    df_marks = pd.DataFrame(columns=['student_id', 'theme', 'mark'])
-    df = pd.DataFrame(new_subjectss, columns=['student_id', 'subject_id', 'mark', 'theme'])
-    df_group = df.groupby('student_id')
-    for name, group in df_group:
-        for compet in needness_compet:
-            comp = list(compet.keys())[0]
-            sum_comp = 0
-            for row in group.iterrows():
-                if comp in (row[1]['theme']):
-                    sum_comp += row[1]['mark']
-            df_marks = df_marks.append({'student_id': name, 'theme': comp, 'mark': sum_comp}, ignore_index=True)
+    df_marks = preProcessing(subjectss, needness_compet)
     result = SplitTeams_First_method_(df_marks, n_amoun, needness_compet)
     return result
 
+
 def SplitTeams_First_method_(stud_theme_mark_df, amount_members, compet_needs):
     if amount_members < 2 or len(stud_theme_mark_df) / len(compet_needs) < amount_members:
-        return ('Error: amount of members in team must be >= 2 and <= amount of students/amount of competences')
+        return 'Error: amount of members in team must be >= 2 and <= amount of students/amount of competences'
         # Get ratings of each student
     df_group = stud_theme_mark_df.groupby('student_id')
     list_of_students = []
@@ -203,12 +97,16 @@ def SplitTeams_First_method_(stud_theme_mark_df, amount_members, compet_needs):
         for row in group.iterrows():
             list_of_students[-1][name][row[1]['theme']] = row[1]['mark']
     All_arr_ratings = []
+    val_need = []
+    compet_needs = compet_needs[0]
+    for compet, value in compet_needs.items():
+        val_need.append(value)
     for student in list_of_students:
         arr_rating = []
-        for i in range(len(compet_needs)):
-            val_need = (list(compet_needs[i].values())[0])
+        for i in range(len(val_need)):
+            val_need_iter = (val_need[i])
             value = (list((list(student.values())[0]).values())[i])
-            arr_rating.append(value / val_need)
+            arr_rating.append(value / val_need_iter)
         All_arr_ratings.append(np.mean(arr_rating))
     list_of_students = []
     for name, group in df_group:
@@ -246,7 +144,100 @@ def SplitTeams_First_method_(stud_theme_mark_df, amount_members, compet_needs):
     plt.show()
     return teams_with_mean
 
-def SplitTeams_(n_amount, needness, directory):
+
+class SplitTeams_BruteForce_:
+    best_team = []
+    best_team_rating = 0
+    iter = 0
+    best_diff = 99999
+    history = []
+
+    def __init__(self, stud_theme_mark_df, amount_members, compet_needs, iters):
+        self.stud_theme_mark_df = stud_theme_mark_df
+        self.amount_members = amount_members
+        self.compet_needs = compet_needs
+        self.iter = iters
+        self.stud_rating = self.get_stud_rating()
+        self.history = []
+
+    def SplitTeams_BruteForce(self):
+        for i in range(self.iter):
+            teams = self.splitTeams(i)
+            teams_rating = self.get_teams_rating(teams)
+            if stats.chisquare(teams_rating).statistic < self.best_diff or self.best_diff == 99999:
+                self.best_diff = stats.chisquare(teams_rating).statistic
+                self.best_team = teams
+                self.best_team_rating = teams_rating
+                # append to history variance of teams rating
+                self.history.append(stats.chisquare(teams_rating).statistic)
+            if i% (self.iter/100) == 0:
+                print(i/(self.iter/100), '%')
+        # plot teams rating
+        plt.hist(self.best_team_rating)
+        plt.show()
+        return {'teams': self.best_team, 'teams_rating': self.best_team_rating}, self.history
+
+    def splitTeams(self,i):
+        seed = i
+        random.seed(seed)
+        # Randomly split students into teams and calculate rating of each team
+        Teams = []
+        listofStudents = list(self.stud_rating.keys())
+        listofRatings = list(self.stud_rating.values())
+        Studs = list(zip(listofStudents, listofRatings))
+        random.shuffle(Studs)
+        for i in range(self.amount_members):
+            Teams.append([])
+        for i in range(len(Studs)):
+            Teams[i % self.amount_members].append(Studs[i][0])
+        return Teams
+
+    def get_stud_rating(self):
+        # Get ratings of each student
+        df_group = self.stud_theme_mark_df.groupby('student_id')
+        list_of_students = []
+        for name, group in df_group:
+            list_of_students.append({name: {}})
+            for row in group.iterrows():
+                list_of_students[-1][name][row[1]['theme']] = row[1]['mark']
+        All_arr_ratings = []
+        val_need = []
+        compet_needs = self.compet_needs[0]
+        for compet, value in compet_needs.items():
+            val_need.append(value)
+        for student in list_of_students:
+            arr_rating = []
+            for i in range(len(val_need)):
+                val_need_iter = (val_need[i])
+                value = (list((list(student.values())[0]).values())[i])
+                arr_rating.append(value / val_need_iter)
+            All_arr_ratings.append(np.mean(arr_rating))
+        list_of_students = []
+        for name, group in df_group:
+            list_of_students.append(name)
+        stud_rating = dict(zip(list_of_students, All_arr_ratings))
+        return stud_rating
+
+    def get_teams_rating(self, teams):
+        # Calculate rating of each team
+        teams_rating = []
+        for team in teams:
+            sum = 0
+            for student in team:
+                sum += self.stud_rating[student]
+            teams_rating.append(sum / len(team))
+        return teams_rating
+
+
+def bruteForceTeams(subjectss, n_amoun, needness_compet, iters):
+    df_marks = preProcessing(subjectss, needness_compet)
+    result, history = SplitTeams_BruteForce_(df_marks, n_amoun, needness_compet, iters).SplitTeams_BruteForce()
+    return result, history
+
+
+# Rework
+
+def getStudlist(directory):
     # Create connection to database
     bipki = sqlite3.connect(directory)
     cursor = bipki.cursor()
@@ -254,8 +245,6 @@ def SplitTeams_(n_amount, needness, directory):
     students = cursor.fetchall()
     cursor.execute("SELECT id FROM subjects WHERE faculty_id = 1")
     subjects = cursor.fetchall()
-    needness = needness
-    n_amount = n_amount  # -- Amount of teams
     stud_list = []
     for student in students:
         for subject in subjects:
@@ -266,7 +255,42 @@ def SplitTeams_(n_amount, needness, directory):
             try:
                 stud_list.append(
                     [student[0], subject[0], (mark[0][0] - 61) / 39 * 100, theme[0][0].split(' ')])
-            except(AttributeError):
+            except AttributeError:
                 pass
-    teams = Split_Teams_(stud_list, n_amount, needness)
-    return teams
+    return stud_list
+
+
+def preProcessing(subjectss, needness_compet):
+    new_subjectss = []
+    for need in needness_compet:
+        need = (list(need.keys())[0])
+        for subject in subjectss:
+            if need in subject[3]:
+                new_subjectss.append(subject)
+    # Sort new_subjectss by student_id
+    new_subjectss.sort(key=lambda x: x[0])
+    df = pd.DataFrame(new_subjectss, columns=['student_id', 'subject_id', 'mark', 'theme'])
+    df_group = df.groupby('student_id')
+    list_of_students = []
+    for name, group in df_group:
+        list_of_students.append({name: {}})
+        for need in needness_compet:
+            need = (list(need.keys())[0])
+            list_of_students[-1][name][need] = 0
+            for subject in new_subjectss:
+                if subject[0] == name and need in subject[3]:
+                    list_of_students[-1][name][need] += subject[2]
+    # Create df from new_subjectss
+    df_marks = pd.DataFrame(columns=['student_id', 'theme', 'mark'])
+    df = pd.DataFrame(new_subjectss, columns=['student_id', 'subject_id', 'mark', 'theme'])
+    df_group = df.groupby('student_id')
+    needness_compet = needness_compet[0]
+    for name, group in df_group:
+        for compet, vv in needness_compet.items():
+            comp = compet
+            sum_comp = 0
+            for row in group.iterrows():
+                if comp in (row[1]['theme']):
+                    sum_comp += row[1]['mark']
+            df_marks = df_marks.append({'student_id': name, 'theme': comp, 'mark': sum_comp}, ignore_index=True)
+    return df_marks
