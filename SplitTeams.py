@@ -14,6 +14,65 @@ from scipy import stats
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
+# Preprocessing of data
+def preProcessing(subjectss, needness_compet):
+    new_subjectss = []
+    for need in needness_compet:
+        need = (list(need.keys())[0])
+        for subject in subjectss:
+            if need in subject[3]:
+                new_subjectss.append(subject)
+    # Sort new_subjectss by student_id
+    new_subjectss.sort(key=lambda x: x[0])
+    df = pd.DataFrame(new_subjectss, columns=['student_id', 'subject_id', 'mark', 'theme'])
+    df_group = df.groupby('student_id')
+    list_of_students = []
+    for name, group in df_group:
+        list_of_students.append({name: {}})
+        for need in needness_compet:
+            need = (list(need.keys())[0])
+            list_of_students[-1][name][need] = 0
+            for subject in new_subjectss:
+                if subject[0] == name and need in subject[3]:
+                    list_of_students[-1][name][need] += subject[2]
+    # Create df from new_subjectss
+    df_marks = pd.DataFrame(columns=['student_id', 'theme', 'mark'])
+    df = pd.DataFrame(new_subjectss, columns=['student_id', 'subject_id', 'mark', 'theme'])
+    df_group = df.groupby('student_id')
+    needness_compet = needness_compet[0]
+    for name, group in df_group:
+        for compet, vv in needness_compet.items():
+            comp = compet
+            sum_comp = 0
+            for row in group.iterrows():
+                if comp in (row[1]['theme']):
+                    sum_comp += row[1]['mark']
+            df_marks = df_marks.append({'student_id': name, 'theme': comp, 'mark': sum_comp}, ignore_index=True)
+    return df_marks
+
+
+def getStudlist(directory):
+    # Create connection to database
+    bipki = sqlite3.connect(directory)
+    cursor = bipki.cursor()
+    cursor.execute("SELECT id FROM students WHERE faculty_id = 1")
+    students = cursor.fetchall()
+    cursor.execute("SELECT id FROM subjects WHERE faculty_id = 1")
+    subjects = cursor.fetchall()
+    stud_list = []
+    for student in students:
+        for subject in subjects:
+            cursor.execute("Select mark FROM substu WHERE student_id = ? AND subject_id = ?", (student[0], subject[0]))
+            mark = cursor.fetchall()
+            cursor.execute("Select theme FROM subjects WHERE id = ?", (subject[0],))
+            theme = cursor.fetchall()
+            try:
+                stud_list.append(
+                    [student[0], subject[0], (mark[0][0] - 61) / 39 * 100, theme[0][0].split(' ')])
+            except AttributeError:
+                pass
+    return stud_list
+
 
 def Split_Teams(subjectss, n_amoun, needness_compet):
     df_marks = preProcessing(subjectss, needness_compet)
@@ -235,62 +294,4 @@ def bruteForceTeams(subjectss, n_amoun, needness_compet, iters):
     return result, history
 
 
-# Rework
 
-def getStudlist(directory):
-    # Create connection to database
-    bipki = sqlite3.connect(directory)
-    cursor = bipki.cursor()
-    cursor.execute("SELECT id FROM students WHERE faculty_id = 1")
-    students = cursor.fetchall()
-    cursor.execute("SELECT id FROM subjects WHERE faculty_id = 1")
-    subjects = cursor.fetchall()
-    stud_list = []
-    for student in students:
-        for subject in subjects:
-            cursor.execute("Select mark FROM substu WHERE student_id = ? AND subject_id = ?", (student[0], subject[0]))
-            mark = cursor.fetchall()
-            cursor.execute("Select theme FROM subjects WHERE id = ?", (subject[0],))
-            theme = cursor.fetchall()
-            try:
-                stud_list.append(
-                    [student[0], subject[0], (mark[0][0] - 61) / 39 * 100, theme[0][0].split(' ')])
-            except AttributeError:
-                pass
-    return stud_list
-
-
-def preProcessing(subjectss, needness_compet):
-    new_subjectss = []
-    for need in needness_compet:
-        need = (list(need.keys())[0])
-        for subject in subjectss:
-            if need in subject[3]:
-                new_subjectss.append(subject)
-    # Sort new_subjectss by student_id
-    new_subjectss.sort(key=lambda x: x[0])
-    df = pd.DataFrame(new_subjectss, columns=['student_id', 'subject_id', 'mark', 'theme'])
-    df_group = df.groupby('student_id')
-    list_of_students = []
-    for name, group in df_group:
-        list_of_students.append({name: {}})
-        for need in needness_compet:
-            need = (list(need.keys())[0])
-            list_of_students[-1][name][need] = 0
-            for subject in new_subjectss:
-                if subject[0] == name and need in subject[3]:
-                    list_of_students[-1][name][need] += subject[2]
-    # Create df from new_subjectss
-    df_marks = pd.DataFrame(columns=['student_id', 'theme', 'mark'])
-    df = pd.DataFrame(new_subjectss, columns=['student_id', 'subject_id', 'mark', 'theme'])
-    df_group = df.groupby('student_id')
-    needness_compet = needness_compet[0]
-    for name, group in df_group:
-        for compet, vv in needness_compet.items():
-            comp = compet
-            sum_comp = 0
-            for row in group.iterrows():
-                if comp in (row[1]['theme']):
-                    sum_comp += row[1]['mark']
-            df_marks = df_marks.append({'student_id': name, 'theme': comp, 'mark': sum_comp}, ignore_index=True)
-    return df_marks
